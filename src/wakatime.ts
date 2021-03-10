@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 
 import { Dependencies } from './dependencies';
-import { COMMAND_DASHBOARD, LogLevel } from './constants';
+import { LogLevel } from './constants';
 import { Options } from './options';
 import { Logger } from './logger';
 import { Libs } from './libs';
@@ -64,78 +64,10 @@ export class WakaTime {
 
     this.setupEventListeners();
 
-    this.options.getSetting('settings', 'disabled', (_e, disabled) => {
-      this.disabled = disabled === 'true';
-      if (this.disabled) {
-        this.setStatusBarVisibility(false);
-        this.logger.debug('Extension disabled, will not report coding stats to dashboard.');
-        return;
-      }
-
-      this.checkApiKey();
-      this.initializeDependencies();
-    });
-  }
-
-  public initializeDependencies(): void {
-    if (this.standalone) this.logger.debug('Using standalone wakatime-cli.');
-    this.dependencies.checkAndInstall(() => {
-      this.logger.debug('WakaTime: Initialized');
-      this.statusBar.text = '$(clock)';
-      this.statusBar.tooltip = 'WakaTime: Initialized';
-      this.options.getSetting('settings', 'status_bar_enabled', (_err, val) => {
-        this.showStatusBar = val === 'true';
-        this.setStatusBarVisibility(this.showStatusBar);
-      });
-      this.options.getSetting('settings', 'status_bar_coding_activity', (_err, val) => {
-        if (val == 'false') {
-          this.showCodingActivity = false;
-        } else {
-          this.showCodingActivity = true;
-          this.getCodingActivity();
-        }
-      });
-    });
-  }
-
-  public promptForApiKey(): void {
-    this.options.getSetting('settings', 'api_key', (_err, defaultVal) => {
-      if (Libs.validateKey(defaultVal) != '') defaultVal = '';
-      let promptOptions = {
-        prompt: 'WakaTime Api Key',
-        placeHolder: 'Enter your api key from https://wakatime.com/settings',
-        value: defaultVal,
-        ignoreFocusOut: true,
-        validateInput: Libs.validateKey.bind(this),
-      };
-      vscode.window.showInputBox(promptOptions).then(val => {
-        if (val != undefined) {
-          let validation = Libs.validateKey(val);
-          if (validation === '') this.options.setSetting('settings', 'api_key', val);
-          else vscode.window.setStatusBarMessage(validation);
-        } else vscode.window.setStatusBarMessage('WakaTime api key not provided');
-      });
-    });
-  }
-
-  public promptForProxy(): void {
-    this.options.getSetting('settings', 'proxy', (_err, defaultVal) => {
-      if (!defaultVal) defaultVal = '';
-      let promptOptions = {
-        prompt: 'WakaTime Proxy',
-        placeHolder: `Proxy format is https://user:pass@host:port (current value \"${defaultVal}\")`,
-        value: defaultVal,
-        ignoreFocusOut: true,
-        validateInput: Libs.validateProxy.bind(this),
-      };
-      vscode.window.showInputBox(promptOptions).then(val => {
-        if (val || val === '') this.options.setSetting('settings', 'proxy', val);
-      });
-    });
+   
   }
 
   public promptForDebug(): void {
-    this.options.getSetting('settings', 'debug', (_err, defaultVal) => {
       if (!defaultVal || defaultVal !== 'true') defaultVal = 'false';
       let items: string[] = ['true', 'false'];
       let promptOptions = {
@@ -153,11 +85,9 @@ export class WakaTime {
           this.logger.setLevel(LogLevel.INFO);
         }
       });
-    });
   }
 
   public promptToDisable(): void {
-    this.options.getSetting('settings', 'disabled', (_err, currentVal) => {
       if (!currentVal || currentVal !== 'true') currentVal = 'false';
       let items: string[] = ['disable', 'enable'];
       const helperText = currentVal === 'true' ? 'disabled' : 'enabled';
@@ -169,22 +99,16 @@ export class WakaTime {
         if (newVal !== 'enable' && newVal !== 'disable') return;
         this.disabled = newVal === 'disable';
         if (this.disabled) {
-          this.options.setSetting('settings', 'disabled', 'true');
           this.setStatusBarVisibility(false);
           this.logger.debug('Extension disabled, will not report coding stats to dashboard.');
         } else {
-          this.options.setSetting('settings', 'disabled', 'false');
-          this.checkApiKey();
-          this.initializeDependencies();
           if (this.showStatusBar) this.setStatusBarVisibility(true);
           this.logger.debug('Extension enabled and reporting coding stats to dashboard.');
         }
       });
-    });
   }
 
   public promptStatusBarIcon(): void {
-    this.options.getSetting('settings', 'status_bar_enabled', (_err, defaultVal) => {
       if (!defaultVal || defaultVal !== 'false') defaultVal = 'true';
       let items: string[] = ['true', 'false'];
       let promptOptions = {
@@ -194,15 +118,12 @@ export class WakaTime {
       };
       vscode.window.showQuickPick(items, promptOptions).then(newVal => {
         if (newVal !== 'true' && newVal !== 'false') return;
-        this.options.setSetting('settings', 'status_bar_enabled', newVal);
         this.showStatusBar = newVal === 'true'; // cache setting to prevent reading from disc too often
         this.setStatusBarVisibility(this.showStatusBar);
       });
-    });
   }
 
   public promptStatusBarCodingActivity(): void {
-    this.options.getSetting('settings', 'status_bar_coding_activity', (_err, defaultVal) => {
       if (!defaultVal || defaultVal !== 'false') defaultVal = 'true';
       let items: string[] = ['true', 'false'];
       let promptOptions = {
@@ -212,7 +133,6 @@ export class WakaTime {
       };
       vscode.window.showQuickPick(items, promptOptions).then(newVal => {
         if (newVal !== 'true' && newVal !== 'false') return;
-        this.options.setSetting('settings', 'status_bar_coding_activity', newVal);
         if (newVal === 'true') {
           this.logger.debug('Coding activity in status bar has been enabled');
           this.showCodingActivity = true;
@@ -225,28 +145,6 @@ export class WakaTime {
           }
         }
       });
-    });
-  }
-
-  public openDashboardWebsite(): void {
-    let url = 'https://wakatime.com/';
-    vscode.env.openExternal(vscode.Uri.parse(url));
-  }
-
-  public openConfigFile(): void {
-    let path = this.options.getConfigFile();
-    if (path) {
-      let uri = vscode.Uri.file(path);
-      vscode.window.showTextDocument(uri);
-    }
-  }
-
-  public openLogFile(): void {
-    let path = this.options.getLogFile();
-    if (path) {
-      let uri = vscode.Uri.file(path);
-      vscode.window.showTextDocument(uri);
-    }
   }
 
   public dispose() {
@@ -255,21 +153,8 @@ export class WakaTime {
     clearTimeout(this.getCodingActivityTimeout);
   }
 
-  private checkApiKey(): void {
-    this.hasApiKey(hasApiKey => {
-      if (!hasApiKey) this.promptForApiKey();
-    });
-  }
 
-  private hasApiKey(callback: (arg0: boolean) => void): void {
-    this.options
-      .getApiKeyAsync()
-      .then(apiKey => callback(Libs.validateKey(apiKey) === ''))
-      .catch(err => {
-        this.logger.error(`Error reading api key: ${err}`);
-        callback(false);
-      });
-  }
+
 
   private setStatusBarVisibility(isVisible: boolean): void {
     if (isVisible) {
@@ -321,26 +206,14 @@ export class WakaTime {
   }
 
   private sendHeartbeat(file: string, isWrite: boolean): void {
-    this.hasApiKey(hasApiKey => {
-      if (hasApiKey) {
         if (this.global === undefined || this.standalone === undefined) return;
         if (this.global || this.standalone) {
           this._sendHeartbeat(file, isWrite);
-        } else {
-          this.dependencies.getPythonLocation(pythonBinary => {
-            if (pythonBinary) {
-              this._sendHeartbeat(file, isWrite, pythonBinary);
-            }
-          });
-        }
-      } else {
-        this.promptForApiKey();
-      }
-    });
+        } 
+      
   }
 
   private _sendHeartbeat(file: string, isWrite: boolean, pythonBinary?: string): void {
-    if (this.standalone && !this.dependencies.isStandaloneCliInstalled()) return;
     let cli = this.dependencies.getCliLocation(this.global, this.standalone);
     let user_agent =
       this.agentName + '/' + vscode.version + ' vscode-wakatime/' + this.extension.version;
@@ -349,14 +222,6 @@ export class WakaTime {
     let project = this.getProjectName(file);
     if (project) args.push('--alternate-project', Libs.quote(project));
     if (isWrite) args.push('--write');
-    if (Dependencies.isWindows() || this.options.isPortable()) {
-      args.push(
-        '--config',
-        Libs.quote(this.options.getConfigFile()),
-        '--log-file',
-        Libs.quote(this.options.getLogFile()),
-      );
-    }
 
     const binary = this.standalone || !pythonBinary ? cli : pythonBinary;
     this.logger.debug(`Sending heartbeat: ${this.formatArguments(binary, args)}`);
@@ -378,29 +243,6 @@ export class WakaTime {
         }
         let today = new Date();
         this.logger.debug(`last heartbeat sent ${this.formatDate(today)}`);
-      } else if (code == 102) {
-        if (this.showStatusBar) {
-          if (!this.showCodingActivity) this.statusBar.text = '$(clock)';
-          this.statusBar.tooltip =
-            'WakaTime: working offline... coding activity will sync next time we are online';
-        }
-        this.logger.warn(
-          `Api eror (102); Check your ${this.options.getLogFile()} file for more details`,
-        );
-      } else if (code == 103) {
-        let error_msg = `Config parsing error (103); Check your ${this.options.getLogFile()} file for more details`;
-        if (this.showStatusBar) {
-          this.statusBar.text = '$(clock) WakaTime Error';
-          this.statusBar.tooltip = `WakaTime: ${error_msg}`;
-        }
-        this.logger.error(error_msg);
-      } else if (code == 104) {
-        let error_msg = 'Invalid Api Key (104); Make sure your Api Key is correct!';
-        if (this.showStatusBar) {
-          this.statusBar.text = '$(clock) WakaTime Error';
-          this.statusBar.tooltip = `WakaTime: ${error_msg}`;
-        }
-        this.logger.error(error_msg);
       } else {
         let error_msg = `Unknown Error (${code}); Check your ${this.options.getLogFile()} file for more details`;
         if (this.showStatusBar) {
@@ -420,36 +262,17 @@ export class WakaTime {
     this.lastFetchToday = Date.now();
     this.getCodingActivityTimeout = setTimeout(this.getCodingActivity, this.fetchTodayInterval);
 
-    this.hasApiKey(hasApiKey => {
-      if (!hasApiKey) return;
-
       if (this.standalone) {
         this._getCodingActivity();
-      } else {
-        this.dependencies.getPythonLocation(pythonBinary => {
-          if (pythonBinary) {
-            this._getCodingActivity(pythonBinary);
-          }
-        });
-      }
-    });
+      } 
   }
 
   private _getCodingActivity(pythonBinary?: string) {
-    if (this.standalone && !this.dependencies.isStandaloneCliInstalled()) return;
     let cli = this.dependencies.getCliLocation(this.global, this.standalone);
     let user_agent =
       this.agentName + '/' + vscode.version + ' vscode-wakatime/' + this.extension.version;
     let args = ['--today', '--plugin', Libs.quote(user_agent)];
     if (!this.standalone) args.unshift(cli);
-    if (Dependencies.isWindows()) {
-      args.push(
-        '--config',
-        Libs.quote(this.options.getConfigFile()),
-        '--logfile',
-        Libs.quote(this.options.getLogFile()),
-      );
-    }
 
     const binary = this.standalone || !pythonBinary ? cli : pythonBinary;
     this.logger.debug(

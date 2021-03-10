@@ -1,13 +1,8 @@
 import * as vscode from 'vscode';
 
 import {
-  COMMAND_API_KEY,
-  COMMAND_CONFIG_FILE,
-  COMMAND_DASHBOARD,
   COMMAND_DEBUG,
   COMMAND_DISABLE,
-  COMMAND_LOG_FILE,
-  COMMAND_PROXY,
   COMMAND_STATUS_BAR_CODING_ACTIVITY,
   COMMAND_STATUS_BAR_ENABLED,
   LogLevel,
@@ -23,18 +18,6 @@ export function activate(ctx: vscode.ExtensionContext) {
   var options = new Options();
 
   wakatime = new WakaTime(ctx.extensionPath, logger, options);
-
-  ctx.subscriptions.push(
-    vscode.commands.registerCommand(COMMAND_API_KEY, function () {
-      wakatime.promptForApiKey();
-    }),
-  );
-
-  ctx.subscriptions.push(
-    vscode.commands.registerCommand(COMMAND_PROXY, function () {
-      wakatime.promptForProxy();
-    }),
-  );
 
   ctx.subscriptions.push(
     vscode.commands.registerCommand(COMMAND_DEBUG, function () {
@@ -60,40 +43,10 @@ export function activate(ctx: vscode.ExtensionContext) {
     }),
   );
 
-  ctx.subscriptions.push(
-    vscode.commands.registerCommand(COMMAND_DASHBOARD, function () {
-      wakatime.openDashboardWebsite();
-    }),
-  );
-
-  ctx.subscriptions.push(
-    vscode.commands.registerCommand(COMMAND_CONFIG_FILE, function () {
-      wakatime.openConfigFile();
-    }),
-  );
-
-  ctx.subscriptions.push(
-    vscode.commands.registerCommand(COMMAND_LOG_FILE, function () {
-      wakatime.openLogFile();
-    }),
-  );
 
   ctx.subscriptions.push(wakatime);
 
-  options.getSetting('settings', 'debug', function (_error, debug) {
-    if (debug === 'true') {
-      logger.setLevel(LogLevel.DEBUG);
-    }
-    options.getSetting('settings', 'global', (_err, global) => {
-      const isGlobal = global === 'true';
-      if (isGlobal) wakatime.initialize(isGlobal, false);
-      else {
-        options.getSetting('settings', 'standalone', (_err, standalone) => {
-          wakatime.initialize(false, standalone !== 'false');
-        });
-      }
-    });
-  });
+
 }
 
 export function deactivate() {

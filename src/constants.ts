@@ -1,6 +1,4 @@
-export const COMMAND_API_KEY = 'wakatime.apikey';
-export const COMMAND_CONFIG_FILE = 'wakatime.config_file';
-export const COMMAND_DASHBOARD = 'wakatime.dashboard';
+
 export const COMMAND_DEBUG = 'wakatime.debug';
 export const COMMAND_DISABLE = 'wakatime.disable';
 export const COMMAND_LOG_FILE = 'wakatime.log_file';
